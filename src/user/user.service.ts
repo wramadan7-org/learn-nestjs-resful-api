@@ -22,8 +22,7 @@ export class UserService {
   ) {}
 
   async findById(id: string): Promise<UserResponse> {
-    this.logger.info(`Find user with ID ${id}`);
-
+    this.logger.info('Function service user for find user by id');
     const user = await this.prismaService.user.findFirst({
       where: {
         id,
@@ -40,6 +39,7 @@ export class UserService {
   }
 
   async findCurrent(user: User): Promise<UserResponse> {
+    this.logger.info('Function service user for find current user');
     return {
       username: user.username,
       name: user.name,
@@ -50,6 +50,7 @@ export class UserService {
     id: string,
     request: UpdateUserRequest,
   ): Promise<UserResponse> {
+    this.logger.info('Function service user for update user');
     const updateRequest: UpdateUserRequest = this.validationService.validate(
       UserValidation.UPDATE,
       request,
@@ -75,6 +76,7 @@ export class UserService {
   }
 
   async deleteUser(id: string): Promise<boolean> {
+    this.logger.info('Function service user for delete user');
     await this.prismaService.user.delete({
       where: {
         id,

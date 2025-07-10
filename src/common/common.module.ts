@@ -1,4 +1,10 @@
-import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  Global,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
@@ -42,6 +48,32 @@ import { AuthMiddleware } from './auth/auth.middleware';
             }),
           ),
         }),
+        new winston.transports.File({
+          filename: 'application.log',
+          level: 'debug',
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.timestamp(),
+            winston.format.printf(({ level, message, timestamp }) => {
+              const msg =
+                typeof message === 'object' ? JSON.stringify(message) : message;
+              return `[${timestamp}] ${level}: ${msg}`;
+            }),
+          ),
+        }),
+        new winston.transports.File({
+          filename: 'application.log',
+          level: 'warn',
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.timestamp(),
+            winston.format.printf(({ level, message, timestamp }) => {
+              const msg =
+                typeof message === 'object' ? JSON.stringify(message) : message;
+              return `[${timestamp}] ${level}: ${msg}`;
+            }),
+          ),
+        }),
       ],
     }),
     ConfigModule.forRoot({
@@ -60,6 +92,12 @@ import { AuthMiddleware } from './auth/auth.middleware';
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).forRoutes('/api/*');
+    consumer
+      .apply(AuthMiddleware)
+      .exclude(
+        { path: '/api/auth/login', method: RequestMethod.POST },
+        { path: '/api/auth/register', method: RequestMethod.POST },
+      )
+      .forRoutes('/api/*path');
   }
 }

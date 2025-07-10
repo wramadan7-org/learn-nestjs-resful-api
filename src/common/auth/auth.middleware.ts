@@ -1,27 +1,29 @@
-import { Inject, Injectable, NestMiddleware } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { Logger } from 'winston';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
-  constructor(
-    private prismaService: PrismaService,
-    @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
-  ) {}
+  constructor(private jwtService: JwtService) {}
 
   async use(req: any, res: any, next: () => void) {
-    const token = req.headers['authorization'] as string;
-
+    const authHeader = req.headers['authorization'] as string;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
+    console.log('TOKEN: ', token);
     if (token) {
-      const user = await this.prismaService.user.findFirst({
-        where: {
-          token,
-        },
-      });
+      try {
+        const payload = await this.jwtService.verifyAsync(token);
 
-      if (user) {
-        req.user = user;
+        if (payload) {
+          req.user = payload;
+        }
+      } catch (error) {
+        throw new UnauthorizedException('Invalid token');
       }
     }
 

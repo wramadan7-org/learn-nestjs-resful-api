@@ -9,6 +9,10 @@ export class LoginUserRequest {
   password: string;
 }
 
+export class RefreshTokenUserRequest {
+  refreshToken: string;
+}
+
 export class UpdateUserRequest {
   name?: string;
   password?: string;
@@ -18,5 +22,6 @@ export class UserResponse {
   id?: string;
   username: string;
   name: string;
-  token?: string;
+  accessToken?: string;
+  refreshToken?: string;
 }

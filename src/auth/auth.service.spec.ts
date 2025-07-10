@@ -6,7 +6,11 @@ import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import * as bcrypt from 'bcrypt';
 import { HttpException, UnauthorizedException } from '@nestjs/common';
-import { LoginUserRequest } from 'src/model/user.model';
+import {
+  LoginUserRequest,
+  RefreshTokenUserRequest,
+} from 'src/model/user.model';
+import { JwtService } from '@nestjs/jwt';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -16,7 +20,8 @@ describe('AuthService', () => {
     username: 'test',
     password: 'test',
     name: 'test',
-    token: '',
+    refreshToken: '',
+    accessToken: '',
   };
 
   const mockPrismaService = {
@@ -31,6 +36,11 @@ describe('AuthService', () => {
 
   const mockValidationService = {
     validate: jest.fn(),
+  };
+
+  const mockJwtService = {
+    signAsync: jest.fn(),
+    verifyAsync: jest.fn(),
   };
 
   const mockLogger: Logger = {
@@ -50,6 +60,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ValidationService, useValue: mockValidationService },
         { provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger },
+        { provide: JwtService, useValue: mockJwtService },
       ],
     }).compile();
 
@@ -133,7 +144,8 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('username', mockUser.username);
       expect(result).toHaveProperty('name', mockUser.name);
-      expect(result).toHaveProperty('token');
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
     });
 
     it('should throw if user not found', async () => {
@@ -163,6 +175,53 @@ describe('AuthService', () => {
 
       await expect(service.login(request)).rejects.toThrow(
         UnauthorizedException,
+      );
+    });
+  });
+
+  describe('refreshAccessToken', () => {
+    it('should return new access token', async () => {
+      const request: RefreshTokenUserRequest = {
+        refreshToken: 'refresh-token',
+      };
+
+      const mockPayload = {
+        id: 'user-id',
+        username: 'test',
+        name: 'Test',
+        type: 'refresh',
+      };
+
+      const mockUser = {
+        id: 'user-id',
+        username: 'test',
+        name: 'Test',
+      };
+
+      mockValidationService.validate.mockReturnValue(request);
+      mockJwtService.verifyAsync.mockResolvedValue(mockPayload);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockJwtService.signAsync.mockResolvedValue('new-access-token');
+
+      const result = await service.refreshAccessToken(request);
+
+      expect(result).toEqual({
+        username: mockUser.username,
+        name: mockUser.name,
+        accessToken: 'new-access-token',
+      });
+    });
+
+    it('should throw if token type is not refresh', async () => {
+      const request: RefreshTokenUserRequest = {
+        refreshToken: 'invalid-token',
+      };
+
+      mockValidationService.validate.mockReturnValue(request);
+      mockJwtService.verifyAsync.mockResolvedValue({ type: 'access' });
+
+      await expect(service.refreshAccessToken(request)).rejects.toThrow(
+        'Invalid token type',
       );
     });
   });

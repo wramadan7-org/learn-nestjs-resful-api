@@ -67,7 +67,8 @@ describe('AuthController', () => {
       const mockResponse: UserResponse = {
         username: request.username,
         name: 'test',
-        token: 'uuid',
+        accessToken: 'jwt',
+        refreshToken: 'jwt',
       };
 
       mockAuthService.login.mockResolvedValue(mockResponse);
@@ -77,7 +78,8 @@ describe('AuthController', () => {
       expect(service.login).toHaveBeenCalledWith(request);
       expect(result.username).toBe(request.username);
       expect(result.name).toBeDefined();
-      expect(result.token).toBeDefined();
+      expect(result.accessToken).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
     });
   });
 });

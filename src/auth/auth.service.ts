@@ -10,13 +10,14 @@ import { PrismaService } from 'src/common/prisma/prisma.service';
 import { ValidationService } from 'src/common/validation/validation.service';
 import {
   LoginUserRequest,
+  RefreshTokenUserRequest,
   RegisterUserRequest,
   UserResponse,
 } from 'src/model/user.model';
 import { Logger } from 'winston';
 import * as bcrypt from 'bcrypt';
-import { UserValidation } from 'src/user/user.validation';
-import { v4 as uuid } from 'uuid';
+import { JwtService } from '@nestjs/jwt';
+import { AuthValidation } from './auth.validation';
 
 @Injectable()
 export class AuthService {
@@ -24,12 +25,16 @@ export class AuthService {
     private prismaService: PrismaService,
     private validationService: ValidationService,
     @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
+    private jwtService: JwtService,
   ) {}
 
   async register(request: RegisterUserRequest): Promise<UserResponse> {
-    this.logger.info('Registering user');
+    this.logger.info('Function service auth for register');
     const registerRequest: RegisterUserRequest =
-      this.validationService.validate(UserValidation.REGISTER, request);
+      this.validationService.validate(
+        AuthValidation.RegisterUserSchema,
+        request,
+      );
 
     const totalUserWithSameUsername = await this.prismaService.user.count({
       where: {
@@ -53,10 +58,10 @@ export class AuthService {
   }
 
   async login(request: LoginUserRequest): Promise<UserResponse> {
-    this.logger.info('Login user');
+    this.logger.info('Function service auth for login');
 
     const loginRequest: LoginUserRequest = this.validationService.validate(
-      UserValidation.LOGIN,
+      AuthValidation.LoginUserSchema,
       request,
     );
 
@@ -69,6 +74,27 @@ export class AuthService {
     if (!user)
       throw new UnauthorizedException('Username or password is invalid');
 
+    const payloadAccessToken = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      type: 'access',
+    };
+
+    const payloadRefreshToken = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      type: 'refresh',
+    };
+
+    const accessToken = await this.jwtService.signAsync(payloadAccessToken);
+
+    const refreshToken = await this.jwtService.signAsync(payloadRefreshToken, {
+      expiresIn: process.env.JWT_EXPIRED_REFRESH,
+      secret: process.env.JWT_SECRET_REFRESH,
+    });
+
     const isPasswordValid = await bcrypt.compare(
       loginRequest.password,
       user.password,
@@ -77,19 +103,65 @@ export class AuthService {
     if (!isPasswordValid)
       throw new UnauthorizedException('Username or password is invalid');
 
-    user = await this.prismaService.user.update({
+    return {
+      username: user.username,
+      name: user.name || '',
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async refreshAccessToken(
+    request: RefreshTokenUserRequest,
+  ): Promise<UserResponse> {
+    this.logger.info('Function service auth for refresh token');
+    const refreshRequest: RefreshTokenUserRequest =
+      await this.validationService.validate(
+        AuthValidation.RefreshTokenUserSchema,
+        request,
+      );
+
+    let payload: UserResponse & { type: 'access' | 'refresh' };
+
+    try {
+      payload = await this.jwtService.verifyAsync(refreshRequest.refreshToken, {
+        secret: process.env.JWT_SECRET_REFRESH,
+      });
+
+      if (payload.type !== 'refresh')
+        throw new UnauthorizedException('Invalid token type');
+    } catch (error) {
+      this.logger.error(error);
+      throw new UnauthorizedException('Invalid token type');
+    }
+
+    const user = await this.prismaService.user.findFirst({
       where: {
-        id: user.id,
-      },
-      data: {
-        token: uuid(),
+        id: payload.id,
       },
     });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const payloadAccessToken = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      type: 'access',
+    };
+
+    let newAccessToken: string;
+
+    try {
+      newAccessToken = await this.jwtService.signAsync(payloadAccessToken);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid token');
+    }
 
     return {
       username: user.username,
       name: user.name,
-      token: user.token || '',
+      accessToken: newAccessToken,
     };
   }
 }

@@ -4,6 +4,7 @@ import { PrismaService } from 'src/common/prisma/prisma.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { NotFoundException } from '@nestjs/common';
 import { User } from '@prisma/client';
+import { ValidationService } from 'src/common/validation/validation.service';
 
 describe('UserService', () => {
   let service: UserService;
@@ -13,8 +14,12 @@ describe('UserService', () => {
 
   const mockPrismaService = {
     user: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
+  };
+
+  const mockValidationService = {
+    validate: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -23,6 +28,7 @@ describe('UserService', () => {
         UserService,
         { provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger },
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: ValidationService, useValue: mockValidationService },
       ],
     }).compile();
 
@@ -40,7 +46,7 @@ describe('UserService', () => {
         name: 'test',
       };
 
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
       const result = await service.findById(
         '83d4e26a-3d4d-49e5-8ed6-6576bc4daa22',
@@ -55,13 +61,13 @@ describe('UserService', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Find user with ID 83d4e26a-3d4d-49e5-8ed6-6576bc4daa22',
       );
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
         where: { id: '83d4e26a-3d4d-49e5-8ed6-6576bc4daa22' },
       });
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(service.findById('999')).rejects.toThrow(NotFoundException);
     });
