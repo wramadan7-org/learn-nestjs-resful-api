@@ -28,7 +28,7 @@ export class UserController {
   ) {}
 
   @Get('/current')
-  async findCurrentUser(@Auth() user: User): Promise<UserResponse> {
+  async getCurrentUser(@Auth() user: User): Promise<UserResponse> {
     this.logger.info('GET /api/users/current');
     const result = await this.userService.findCurrent(user);
 
@@ -37,7 +37,7 @@ export class UserController {
 
   @Get('/:id')
   @UseGuards(JwtAuthGuard)
-  async findUserById(@Param('id') id: string): Promise<UserResponse> {
+  async getUserById(@Param('id') id: string): Promise<UserResponse> {
     this.logger.info(`GET /api/users/${id}`);
     const result = await this.userService.findById(id);
 
